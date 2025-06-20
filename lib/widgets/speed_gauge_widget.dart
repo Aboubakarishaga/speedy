@@ -6,6 +6,7 @@ class SpeedGaugeWidget extends StatelessWidget {
   final String unit;
   final Color pointerColor;
   final bool enableLoadingAnimation;
+  final double maxValue;
 
   const SpeedGaugeWidget({
     super.key,
@@ -13,6 +14,7 @@ class SpeedGaugeWidget extends StatelessWidget {
     required this.unit,
     required this.pointerColor,
     this.enableLoadingAnimation = true,
+    this.maxValue = 100,
   });
 
   @override
@@ -26,11 +28,11 @@ class SpeedGaugeWidget extends StatelessWidget {
         axes: [
           RadialAxis(
             minimum: 0,
-            maximum: 100,
+            maximum: maxValue,
             ranges: [
               GaugeRange(
                 startValue: 0,
-                endValue: 100,
+                endValue: maxValue,
                 startWidth: 10,
                 endWidth: 10,
                 color: Colors.black12,

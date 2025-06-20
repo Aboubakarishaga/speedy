@@ -7,7 +7,15 @@ class LoadingWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Column(
-        children: [CircularProgressIndicator(), SizedBox(height: 16.0)],
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 16.0),
+          Text(
+            "Sélection du serveur...",
+            style: TextStyle(fontSize: 16.0),
+          ),
+        ],
       ),
     );
   }
