@@ -1,0 +1,454 @@
+import 'package:flutter/material.dart';
+import '../services/database_service.dart';
+import '../services/csv_service.dart';
+import '../widgets/space_widget.dart';
+
+class HistoryScreen extends StatefulWidget {
+  const HistoryScreen({super.key});
+
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  List<Map<String, dynamic>> _speedTests = [];
+  bool _isLoading = true;
+  final DatabaseService _databaseService = DatabaseService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSpeedTests();
+  }
+
+  Future<void> _loadSpeedTests() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final tests = await _databaseService.getAllSpeedTests();
+      setState(() {
+        _speedTests = tests;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      _showErrorSnackBar('Erreur lors du chargement de l\'historique: $e');
+    }
+  }
+
+  Future<void> _exportToCsv() async {
+    try {
+      if (_speedTests.isEmpty) {
+        _showErrorSnackBar('Aucune donnée à exporter');
+        return;
+      }
+
+      // Demander les permissions si nécessaire
+      bool hasPermission = await CsvService.requestStoragePermission();
+      if (!hasPermission) {
+        _showErrorSnackBar('Permission de stockage requise pour l\'export');
+        return;
+      }
+
+      // Afficher un indicateur de chargement
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('Export en cours...'),
+            ],
+          ),
+        ),
+      );
+
+      await CsvService.exportToCsv(_speedTests);
+
+      // Fermer le dialog de chargement
+      Navigator.of(context).pop();
+
+      _showSuccessSnackBar('Export CSV réussi!');
+    } catch (e) {
+      // Fermer le dialog de chargement en cas d'erreur
+      Navigator.of(context).pop();
+      _showErrorSnackBar('Erreur lors de l\'export: $e');
+    }
+  }
+
+  Future<void> _deleteTest(int id) async {
+    try {
+      await _databaseService.deleteSpeedTest(id);
+      await _loadSpeedTests();
+      _showSuccessSnackBar('Test supprimé avec succès');
+    } catch (e) {
+      _showErrorSnackBar('Erreur lors de la suppression: $e');
+    }
+  }
+
+  Future<void> _deleteAllTests() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmer la suppression'),
+        content: Text('Êtes-vous sûr de vouloir supprimer tout l\'historique?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text('Supprimer tout'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _databaseService.deleteAllSpeedTests();
+        await _loadSpeedTests();
+        _showSuccessSnackBar('Historique supprimé avec succès');
+      } catch (e) {
+        _showErrorSnackBar('Erreur lors de la suppression: $e');
+      }
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  String _formatDate(String dateString) {
+    final date = DateTime.parse(dateString);
+    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+  }
+
+  String _formatTime(String dateString) {
+    final date = DateTime.parse(dateString);
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Historique'),
+        actions: [
+          if (_speedTests.isNotEmpty) ...[
+            IconButton(
+              icon: Icon(Icons.file_download, color: Colors.cyanAccent),
+              onPressed: _exportToCsv,
+              tooltip: 'Exporter en CSV',
+            ),
+            PopupMenuButton(
+              icon: Icon(Icons.more_vert),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'delete_all',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_forever, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Supprimer tout'),
+                    ],
+                  ),
+                ),
+              ],
+              onSelected: (value) {
+                if (value == 'delete_all') {
+                  _deleteAllTests();
+                }
+              },
+            ),
+          ],
+        ],
+      ),
+      body: _isLoading
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(color: Colors.cyanAccent),
+            SpaceWidget(),
+            Text('Chargement de l\'historique...'),
+          ],
+        ),
+      )
+          : _speedTests.isEmpty
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.history,
+              size: 80,
+              color: Colors.grey,
+            ),
+            SpaceWidget(),
+            Text(
+              'Aucun test enregistré',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey,
+              ),
+            ),
+            SpaceWidget(),
+            Text(
+              'Effectuez votre premier test de vitesse!',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+          ],
+        ),
+      )
+          : RefreshIndicator(
+        color: Colors.cyanAccent,
+        onRefresh: _loadSpeedTests,
+        child: ListView.builder(
+          padding: EdgeInsets.all(16),
+          itemCount: _speedTests.length,
+          itemBuilder: (context, index) {
+            final test = _speedTests[index];
+            return Card(
+              margin: EdgeInsets.only(bottom: 16),
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Date et heure
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.calendar_today,
+                              color: Colors.cyanAccent,
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              _formatDate(test['test_date']),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            SizedBox(width: 16),
+                            Icon(
+                              Icons.access_time,
+                              color: Colors.cyanAccent,
+                              size: 16,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              _formatTime(test['test_date']),
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _deleteTest(test['id']),
+                          tooltip: 'Supprimer',
+                        ),
+                      ],
+                    ),
+                    SpaceWidget(),
+                    // Métriques de vitesse
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.arrow_circle_down,
+                                    color: Colors.cyanAccent,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Download',
+                                    style: TextStyle(
+                                      color: Colors.cyanAccent,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '${test['download_speed']} ${test['unit']}',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.arrow_circle_up,
+                                    color: Colors.purpleAccent,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Upload',
+                                    style: TextStyle(
+                                      color: Colors.purpleAccent,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '${test['upload_speed']} ${test['unit']}',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    SpaceWidget(),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.network_ping,
+                                    color: Colors.orangeAccent,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Ping',
+                                    style: TextStyle(
+                                      color: Colors.orangeAccent,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '${test['ping']} ms',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.speed,
+                                    color: Colors.greenAccent,
+                                    size: 20,
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Latence',
+                                    style: TextStyle(
+                                      color: Colors.greenAccent,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '${test['latency']} ms',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (test['ip_address'] != null) ...[
+                      SpaceWidget(),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.public,
+                            color: Colors.grey,
+                            size: 16,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'IP: ${test['ip_address']}',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
