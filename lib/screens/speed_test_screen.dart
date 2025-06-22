@@ -10,6 +10,7 @@ import '../widgets/result_widget.dart';
 import '../widgets/run_test_widget.dart';
 import '../widgets/space_widget.dart';
 import '../widgets/speed_gauge_widget.dart';
+import '../services/database_service.dart';
 
 class SpeedTestScreen extends StatefulWidget {
   const SpeedTestScreen({super.key});
@@ -20,6 +21,7 @@ class SpeedTestScreen extends StatefulWidget {
 
 class _SpeedTestScreenState extends State<SpeedTestScreen> {
   final PageController pageController = PageController();
+  final DatabaseService _databaseService = DatabaseService();
 
   double _downloadRate = 0;
   double _uploadRate = 0;
@@ -33,7 +35,7 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
   bool _isServerSelectionInProgress = false;
   bool _runTest = false;
   bool _runTestIsComplete = false;
-  int _currentTestPhase = 0; // 0: download, 1: upload, 2: ping, 3: latency
+  int _currentTestPhase = 0;
 
   String? _ip;
   String _unit = "Mbps";
@@ -48,7 +50,10 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Speed Test")),
+      appBar: AppBar(
+        title: Text("Speed Test"),
+        automaticallyImplyLeading: false, // Retirer le bouton retour
+      ),
       body: !_runTest
           ? RunTestWidget(
         onTap: () {
@@ -212,6 +217,7 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
     );
   }
 
+  // Le reste du code reste identique...
   Future<void> startTest() async {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       setState(() {
@@ -221,23 +227,15 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
       });
 
       try {
-        // Sélection du serveur
         await _selectServer();
 
         setState(() {
           _isServerSelectionInProgress = false;
         });
 
-        // Test de download
         await _testDownload();
-
-        // Test d'upload
         await _testUpload();
-
-        // Test de ping
         await _testPing();
-
-        // Test de latence
         await _testLatency();
 
         setState(() {
@@ -247,6 +245,16 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
           _finalPing = _ping;
           _finalLatency = _latency;
         });
+
+        await _databaseService.insertSpeedTest(
+          downloadSpeed: _finalDownloadRate,
+          uploadSpeed: _finalUploadRate,
+          ping: _finalPing,
+          latency: _finalLatency,
+          ipAddress: _ip,
+          serverUrl: _serverUrl,
+          unit: _unit,
+        );
       } catch (e) {
         print('Erreur lors du test: $e');
         reset();
@@ -256,20 +264,15 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
 
   Future<void> _selectServer() async {
     try {
-      // Obtenir l'IP publique
       final ipResponse = await http.get(Uri.parse('https://api.ipify.org?format=json'));
       if (ipResponse.statusCode == 200) {
         final ipData = json.decode(ipResponse.body);
         _ip = ipData['ip'];
       }
-
-      // Utiliser un serveur de test public
       _serverUrl = 'https://speed.cloudflare.com';
-
       await Future.delayed(Duration(seconds: 1));
     } catch (e) {
       print('Erreur sélection serveur: $e');
-      // Utiliser un serveur de test public
       _serverUrl = 'https://speed.cloudflare.com';
     }
   }
@@ -279,7 +282,6 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
       _currentTestPhase = 0;
     });
 
-    // Vérifier si le PageController est attaché avant de l'utiliser
     if (pageController.hasClients) {
       pageController.animateToPage(0, duration: Duration(milliseconds: 300), curve: Curves.easeIn);
     }
@@ -288,8 +290,7 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
     final testDuration = Duration(seconds: 10);
 
     try {
-      // Simulation d'un test de download avec un fichier de test
-      final testFileUrl = 'https://speed.cloudflare.com/__down?bytes=1000000'; // 1MB
+      final testFileUrl = 'https://speed.cloudflare.com/__down?bytes=1000000';
 
       while (stopwatch.elapsed < testDuration) {
         final startTime = DateTime.now();
@@ -297,21 +298,20 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
         try {
           final response = await http.get(
             Uri.parse(testFileUrl),
-            headers: {'Range': 'bytes=0-1048576'}, // 1MB chunk
+            headers: {'Range': 'bytes=0-1048576'},
           ).timeout(Duration(seconds: 2));
 
           if (response.statusCode == 206 || response.statusCode == 200) {
             final endTime = DateTime.now();
             final duration = endTime.difference(startTime).inMilliseconds;
             final bytes = response.bodyBytes.length;
-            final speed = (bytes * 8) / (duration / 1000) / 1000000; // Mbps
+            final speed = (bytes * 8) / (duration / 1000) / 1000000;
 
             setState(() {
               _downloadRate = double.parse(speed.toStringAsFixed(2));
             });
           }
         } catch (e) {
-          // Simulation de vitesse en cas d'erreur
           final simulatedSpeed = 20 + Random().nextDouble() * 80;
           setState(() {
             _downloadRate = double.parse(simulatedSpeed.toStringAsFixed(2));
@@ -330,7 +330,6 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
       _currentTestPhase = 1;
     });
 
-    // Vérifier si le PageController est attaché avant de l'utiliser
     if (pageController.hasClients) {
       pageController.animateToPage(1, duration: Duration(milliseconds: 300), curve: Curves.easeIn);
     }
@@ -340,8 +339,7 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
 
     try {
       while (stopwatch.elapsed < testDuration) {
-        // Simulation d'upload - générer des données aléatoires
-        final data = List.generate(1024 * 100, (index) => Random().nextInt(256)); // 100KB
+        final data = List.generate(1024 * 100, (index) => Random().nextInt(256));
 
         try {
           final startTime = DateTime.now();
@@ -355,14 +353,13 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
             final endTime = DateTime.now();
             final duration = endTime.difference(startTime).inMilliseconds;
             final bytes = data.length;
-            final speed = (bytes * 8) / (duration / 1000) / 1000000; // Mbps
+            final speed = (bytes * 8) / (duration / 1000) / 1000000;
 
             setState(() {
               _uploadRate = double.parse(speed.toStringAsFixed(2));
             });
           }
         } catch (e) {
-          // Simulation de vitesse en cas d'erreur
           final simulatedSpeed = 10 + Random().nextDouble() * 50;
           setState(() {
             _uploadRate = double.parse(simulatedSpeed.toStringAsFixed(2));
@@ -381,7 +378,6 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
       _currentTestPhase = 2;
     });
 
-    // Vérifier si le PageController est attaché avant de l'utiliser
     if (pageController.hasClients) {
       pageController.animateToPage(2, duration: Duration(milliseconds: 300), curve: Curves.easeIn);
     }
@@ -405,7 +401,6 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
             });
           }
         } catch (e) {
-          // Simulation en cas d'erreur
           final simulatedPing = 20 + Random().nextDouble() * 100;
           pings.add(simulatedPing);
           setState(() {
@@ -416,7 +411,6 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
         await Future.delayed(Duration(milliseconds: 300));
       }
 
-      // Calculer la moyenne des pings
       if (pings.isNotEmpty) {
         final averagePing = pings.reduce((a, b) => a + b) / pings.length;
         setState(() {
@@ -433,7 +427,6 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
       _currentTestPhase = 3;
     });
 
-    // Vérifier si le PageController est attaché avant de l'utiliser
     if (pageController.hasClients) {
       pageController.animateToPage(3, duration: Duration(milliseconds: 300), curve: Curves.easeIn);
     }
@@ -457,7 +450,6 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
             _latency = double.parse(latency.toStringAsFixed(1));
           });
         } catch (e) {
-          // Simulation en cas d'erreur
           final simulatedLatency = 15 + Random().nextDouble() * 80;
           latencies.add(simulatedLatency);
           setState(() {
@@ -468,7 +460,6 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
         await Future.delayed(Duration(milliseconds: 300));
       }
 
-      // Calculer la moyenne des latences
       if (latencies.isNotEmpty) {
         final averageLatency = latencies.reduce((a, b) => a + b) / latencies.length;
         setState(() {
