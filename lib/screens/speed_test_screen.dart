@@ -217,7 +217,6 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
     );
   }
 
-  // Le reste du code reste identique...
   Future<void> startTest() async {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       setState(() {

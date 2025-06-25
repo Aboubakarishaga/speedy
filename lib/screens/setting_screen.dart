@@ -1,5 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:speedy/widgets/selection_header.dart';
+import 'package:speedy/widgets/settings_tile.dart';
+import 'package:speedy/widgets/switch_tile.dart';
+import '../providers/provider.dart';
 import '../services/database_service.dart';
+import '../services/auto_test_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -9,13 +15,19 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _notificationsEnabled = true;
-  bool _autoTestEnabled = false;
-  String _selectedUnit = 'Mbps';
-  String _selectedTheme = 'Sombre';
-
-  final List<String> _units = ['Mbps', 'Kbps', 'Gbps'];
+  final List<String> _units = ['Kbps', 'Mbps', 'Gbps'];
   final List<String> _themes = ['Sombre', 'Clair', 'Système'];
+  final List<int> _autoTestIntervals = [15, 30, 60, 120, 360, 720]; // en minutes
+
+  String _getIntervalDisplayName(int minutes) {
+    if (minutes < 60) {
+      return '$minutes minutes';
+    } else if (minutes < 1440) {
+      return '${(minutes / 60).round()} heure${(minutes / 60).round() > 1 ? 's' : ''}';
+    } else {
+      return '${(minutes / 1440).round()} jour${(minutes / 1440).round() > 1 ? 's' : ''}';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,144 +36,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Text('Paramètres'),
         automaticallyImplyLeading: false,
       ),
-      body: ListView(
-        padding: EdgeInsets.all(16),
-        children: [
-          _buildSectionHeader('Général'),
-          _buildSettingsTile(
-            icon: Icons.speed,
-            title: 'Unité de vitesse',
-            subtitle: _selectedUnit,
-            onTap: () => _showUnitDialog(),
-          ),
-          _buildSettingsTile(
-            icon: Icons.color_lens,
-            title: 'Thème',
-            subtitle: _selectedTheme,
-            onTap: () => _showThemeDialog(),
-          ),
+      body: Consumer<PreferencesProvider>(
+        builder: (context, prefs, child) {
+          return ListView(
+            padding: EdgeInsets.all(16),
+            children: [
+              SelectionHeader( title: 'Général',),
+              SettingsTile(
+                icon: Icons.speed,
+                title: 'Unité de vitesse',
+                subtitle: prefs.speedUnit,
+                onTap: () => _showUnitDialog(prefs),
+              ),
+              SettingsTile(
+                icon: Icons.color_lens,
+                title: 'Thème',
+                subtitle: prefs.themeDisplayName,
+                onTap: () => _showThemeDialog(prefs),
+              ),
 
-          SizedBox(height: 20),
-          _buildSectionHeader('Notifications'),
-          _buildSwitchTile(
-            icon: Icons.notifications,
-            title: 'Notifications',
-            subtitle: 'Recevoir des notifications de test',
-            value: _notificationsEnabled,
-            onChanged: (value) {
-              setState(() {
-                _notificationsEnabled = value;
-              });
-            },
-          ),
+              SizedBox(height: 20),
+              SelectionHeader(title: 'Notifications'),
+              SwitchTile(
+                icon: Icons.notifications,
+                title: 'Notifications',
+                subtitle: 'Recevoir des notifications de test',
+                value: prefs.notificationsEnabled,
+                onChanged: (value) => prefs.setNotificationsEnabled(value),
+              ),
 
-          SizedBox(height: 20),
-          _buildSectionHeader('Test automatique'),
-          _buildSwitchTile(
-            icon: Icons.auto_mode,
-            title: 'Test automatique',
-            subtitle: 'Effectuer des tests périodiques',
-            value: _autoTestEnabled,
-            onChanged: (value) {
-              setState(() {
-                _autoTestEnabled = value;
-              });
-            },
-          ),
+              SizedBox(height: 20),
+              SelectionHeader(title: 'Test automatique'),
+              SwitchTile(
+                icon: Icons.auto_mode,
+                title: 'Test automatique',
+                subtitle: 'Effectuer des tests périodiques',
+                value: prefs.autoTestEnabled,
+                onChanged: (value) => prefs.setAutoTestEnabled(value),
+              ),
+              if (prefs.autoTestEnabled) ...[
+                SettingsTile(
+                  icon: Icons.schedule,
+                  title: 'Intervalle de test',
+                  subtitle: _getIntervalDisplayName(prefs.autoTestInterval),
+                  onTap: () => _showIntervalDialog(prefs),
+                ),
+                Card(
+                  margin: EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: Icon(
+                      AutoTestService().isRunning ? Icons.play_circle : Icons.pause_circle,
+                      color: AutoTestService().isRunning ? Colors.green : Colors.orange,
+                    ),
+                    title: Text('État du service'),
+                    subtitle: Text(
+                      AutoTestService().isRunning
+                          ? 'Tests automatiques actifs'
+                          : 'Tests automatiques en pause',
+                    ),
+                  ),
+                ),
+              ],
 
-          SizedBox(height: 20),
-          _buildSectionHeader('Données'),
-          _buildSettingsTile(
-            icon: Icons.delete_sweep,
-            title: 'Effacer l\'historique',
-            subtitle: 'Supprimer tous les tests sauvegardés',
-            onTap: () => _showClearHistoryDialog(),
-          ),
-          _buildSettingsTile(
-            icon: Icons.backup,
-            title: 'Sauvegarde des données',
-            subtitle: 'Exporter/Importer les données',
-            onTap: () => _showBackupDialog(),
-          ),
+              SizedBox(height: 20),
+              SelectionHeader(title: 'Données'),
+              SettingsTile(
+                icon: Icons.delete_sweep,
+                title: 'Effacer l\'historique',
+                subtitle: 'Supprimer tous les tests sauvegardés',
+                onTap: () => _showClearHistoryDialog(),
+              ),
+              SettingsTile(
+                icon: Icons.backup,
+                title: 'Sauvegarde des données',
+                subtitle: 'Exporter/Importer les données',
+                onTap: () => _showBackupDialog(),
+              ),
 
-          SizedBox(height: 20),
-          _buildSectionHeader('À propos'),
-          _buildSettingsTile(
-            icon: Icons.info,
-            title: 'Version de l\'application',
-            subtitle: '1.0.0',
-            onTap: () => _showAboutDialog(),
-          ),
-          _buildSettingsTile(
-            icon: Icons.help,
-            title: 'Aide et support',
-            subtitle: 'FAQ et contact',
-            onTap: () => _showHelpDialog(),
-          ),
-          _buildSettingsTile(
-            icon: Icons.privacy_tip,
-            title: 'Politique de confidentialité',
-            subtitle: 'Voir notre politique',
-            onTap: () => _showPrivacyDialog(),
-          ),
-        ],
+              SizedBox(height: 20),
+              SelectionHeader(title: 'À propos'),
+              SettingsTile(
+                icon: Icons.info,
+                title: 'Version de l\'application',
+                subtitle: '1.0.0',
+                onTap: () => _showAboutDialog(),
+              ),
+              SettingsTile(
+                icon: Icons.help,
+                title: 'Aide et support',
+                subtitle: 'FAQ et contact',
+                onTap: () => _showHelpDialog(),
+              ),
+              SettingsTile(
+                icon: Icons.privacy_tip,
+                title: 'Politique de confidentialité',
+                subtitle: 'Voir notre politique',
+                onTap: () => _showPrivacyDialog(),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: EdgeInsets.fromLTRB(0, 0, 0, 8),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-          color: Colors.cyanAccent,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSettingsTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Icon(icon, color: Colors.cyanAccent),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  Widget _buildSwitchTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required Function(bool) onChanged,
-  }) {
-    return Card(
-      margin: EdgeInsets.only(bottom: 8),
-      child: SwitchListTile(
-        secondary: Icon(icon, color: Colors.cyanAccent),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        value: value,
-        onChanged: onChanged,
-        activeColor: Colors.cyanAccent,
-      ),
-    );
-  }
-
-  void _showUnitDialog() {
+  void _showUnitDialog(PreferencesProvider prefs) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -171,11 +150,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: _units.map((unit) => RadioListTile<String>(
             title: Text(unit),
             value: unit,
-            groupValue: _selectedUnit,
+            groupValue: prefs.speedUnit,
             onChanged: (value) {
-              setState(() {
-                _selectedUnit = value!;
-              });
+              prefs.setSpeedUnit(value!);
               Navigator.pop(context);
             },
             activeColor: Colors.cyanAccent,
@@ -185,21 +162,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showThemeDialog() {
+  void _showThemeDialog(PreferencesProvider prefs) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Choisir le thème'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: _themes.map((theme) => RadioListTile<String>(
-            title: Text(theme),
-            value: theme,
-            groupValue: _selectedTheme,
+          children: [
+            RadioListTile<ThemeMode>(
+              title: Text('Sombre'),
+              value: ThemeMode.dark,
+              groupValue: prefs.themeMode,
+              onChanged: (value) {
+                prefs.setThemeMode(value!);
+                Navigator.pop(context);
+              },
+              activeColor: Colors.cyanAccent,
+            ),
+            RadioListTile<ThemeMode>(
+              title: Text('Clair'),
+              value: ThemeMode.light,
+              groupValue: prefs.themeMode,
+              onChanged: (value) {
+                prefs.setThemeMode(value!);
+                Navigator.pop(context);
+              },
+              activeColor: Colors.cyanAccent,
+            ),
+            RadioListTile<ThemeMode>(
+              title: Text('Système'),
+              value: ThemeMode.system,
+              groupValue: prefs.themeMode,
+              onChanged: (value) {
+                prefs.setThemeMode(value!);
+                Navigator.pop(context);
+              },
+              activeColor: Colors.cyanAccent,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showIntervalDialog(PreferencesProvider prefs) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Intervalle des tests automatiques'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: _autoTestIntervals.map((interval) => RadioListTile<int>(
+            title: Text(_getIntervalDisplayName(interval)),
+            value: interval,
+            groupValue: prefs.autoTestInterval,
             onChanged: (value) {
-              setState(() {
-                _selectedTheme = value!;
-              });
+              prefs.setAutoTestInterval(value!);
               Navigator.pop(context);
             },
             activeColor: Colors.cyanAccent,
@@ -293,29 +312,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   void _showHelpDialog() {
     showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
+      context: context,
+      builder: (context) => AlertDialog(
         title: Text('Aide et support'),
-    content: Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-    Text('Questions fréquentes:'),
-    SizedBox(height: 10),
-    Text('• Comment effectuer un test?'),
-    Text('• Que signifient les résultats?'),
-    Text('• Comment exporter l\'historique?'),
-    SizedBox(height: 10),
-    Text('Contact: support@speedtest.com'),
-    ],
-    ),
-    actions: [
-    TextButton(
-    onPressed: () => Navigator.pop(context),
-    child: Text('OK'),
-    ),
-    ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Questions fréquentes:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 10),
+              Text('• Comment effectuer un test?'),
+              Text('  Appuyez sur le bouton "GO" sur l\'écran principal.'),
+              SizedBox(height: 8),
+              Text('• Pourquoi mes résultats varient-ils?'),
+              Text('  La vitesse Internet peut varier selon l\'heure, la charge du réseau et votre position.'),
+              SizedBox(height: 8),
+              Text('• Comment activer les tests automatiques?'),
+              Text('  Allez dans Paramètres > Test automatique et activez l\'option.'),
+              SizedBox(height: 8),
+              Text('• Que signifient Download/Upload?'),
+              Text('  Download: vitesse de réception des données'),
+              Text('  Upload: vitesse d\'envoi des données'),
+              SizedBox(height: 15),
+              Text(
+                'Contact:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 5),
+              Text('Email: support@speedtestapp.com'),
+              Text('Site web: www.speedtestapp.com'),
+            ],
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -329,26 +368,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Collecte des données:'),
+              Text(
+                'Collecte des données:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               SizedBox(height: 8),
-              Text('• Résultats des tests de vitesse'),
-              Text('• Adresse IP publique'),
-              Text('• Horodatage des tests'),
-              SizedBox(height: 16),
-              Text('Utilisation des données:'),
+              Text('• Nous collectons uniquement les résultats de vos tests de vitesse'),
+              Text('• Aucune donnée personnelle n\'est collectée'),
+              Text('• Les données sont stockées localement sur votre appareil'),
+              SizedBox(height: 15),
+              Text(
+                'Utilisation des données:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               SizedBox(height: 8),
-              Text('• Amélioration de l\'application'),
-              Text('• Historique personnel'),
-              Text('• Statistiques anonymes'),
-              SizedBox(height: 16),
-              Text('Vos données restent privées et ne sont pas partagées avec des tiers.'),
+              Text('• Les données servent uniquement à l\'historique des tests et aussi à facilité la prédiction des performances future du réseau.'),
+              Text('• Aucun partage avec des tiers'),
+              Text('• Vous pouvez supprimer vos données à tout moment'),
+              SizedBox(height: 15),
+              Text(
+                'Sécurité:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text('• Toutes les données sont chiffrées'),
+              Text('• Aucune transmission de données sensibles'),
+              Text('• Respect des standards de sécurité'),
+              SizedBox(height: 15),
+              Text(
+                'Vos droits:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text('• Droit d\'accès à vos données'),
+              Text('• Droit de suppression'),
+              Text('• Droit de portabilité'),
+              SizedBox(height: 10),
+              Text('Dernière mise à jour: Juin 2025'),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Fermer'),
+            child: Text('J\'ai compris'),
           ),
         ],
       ),
