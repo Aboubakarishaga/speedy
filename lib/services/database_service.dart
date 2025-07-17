@@ -105,4 +105,42 @@ class DatabaseService {
       orderBy: 'test_date DESC',
     );
   }
+  Future<List<Map<String, dynamic>>> getSpeedTestsWithLocation() async {
+    final db = await database;
+    return await db.query(
+      'speed_tests',
+      where: 'latitude IS NOT NULL AND longitude IS NOT NULL',
+      orderBy: 'timestamp DESC',
+    );
+  }
+
+  Future<void> saveSpeedTestWithLocation({
+    required double downloadSpeed,
+    required double uploadSpeed,
+    required double ping,
+    required double latency,
+    required String unit,
+    String? ipAddress,
+    double? latitude,
+    double? longitude,
+    String? location,
+  }) async {
+    final db = await database;
+    await db.insert(
+      'speed_tests',
+      {
+        'download_speed': downloadSpeed,
+        'upload_speed': uploadSpeed,
+        'ping': ping,
+        'latency': latency,
+        'unit': unit,
+        'ip_address': ipAddress,
+        'latitude': latitude,
+        'longitude': longitude,
+        'location': location,
+        'timestamp': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
 }
