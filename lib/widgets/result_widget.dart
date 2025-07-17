@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'space_widget.dart';
 
 class ResultWidget extends StatelessWidget {
   final double downloadRate;
@@ -19,99 +18,130 @@ class ResultWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SpaceWidget(),
-        Text(
-          "Résultats",
-          style: TextStyle(
-            color: Colors.cyanAccent,
-            fontWeight: FontWeight.bold,
-            fontSize: 30.0,
-          ),
-        ),
-        SpaceWidget(),
-        // Download et Upload
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+    return Card(
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      margin: const EdgeInsets.all(16),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
           children: [
-            Column(
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.arrow_circle_down, color: Colors.cyanAccent),
-                    SpaceWidget(),
-                    Text("Download $unit"),
-                  ],
-                ),
-                SpaceWidget(),
-                Text(
-                  downloadRate == 0 ? "..." : downloadRate.toString(),
-                  style: TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold),
-                ),
-              ],
+            Text(
+              "Résultats du test",
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.bold,
+                fontSize: 28,
+              ),
             ),
-            SizedBox(height: 60.0, child: VerticalDivider()),
-            Column(
+            const SizedBox(height: 24),
+            _buildMetricCard(
+              context,
+              "Téléchargement",
+              downloadRate,
+              Icons.arrow_circle_down,
+              Colors.cyanAccent,
+              unit,
+            ),
+            const SizedBox(height: 16),
+            _buildMetricCard(
+              context,
+              "Envoi",
+              uploadRate,
+              Icons.arrow_circle_up,
+              Colors.purpleAccent,
+              unit,
+            ),
+            const SizedBox(height: 16),
+            Row(
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.arrow_circle_up, color: Colors.purpleAccent),
-                    SpaceWidget(),
-                    Text("Upload $unit"),
-                  ],
+                Expanded(
+                  child: _buildMetricCard(
+                    context,
+                    "Ping",
+                    ping,
+                    Icons.network_ping,
+                    Colors.orangeAccent,
+                    "ms",
+                    isCompact: true,
+                  ),
                 ),
-                SpaceWidget(),
-                Text(
-                  uploadRate == 0 ? "..." : uploadRate.toString(),
-                  style: TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildMetricCard(
+                    context,
+                    "Latence",
+                    latency,
+                    Icons.speed,
+                    Colors.greenAccent,
+                    "ms",
+                    isCompact: true,
+                  ),
                 ),
               ],
             ),
           ],
         ),
-        SpaceWidget(),
-        SpaceWidget(),
-        // Ping et Latence
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+      ),
+    );
+  }
+
+  Widget _buildMetricCard(
+      BuildContext context,
+      String title,
+      double value,
+      IconData icon,
+      Color color,
+      String unit, {
+        bool isCompact = false,
+      }) {
+    return Card(
+      elevation: isCompact ? 4 : 6,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(isCompact ? 12 : 16),
+        child: Column(
           children: [
-            Column(
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.network_ping, color: Colors.orangeAccent),
-                    SpaceWidget(),
-                    Text("Ping ms"),
-                  ],
-                ),
-                SpaceWidget(),
+                Icon(icon, color: color, size: isCompact ? 20 : 24),
+                const SizedBox(width: 8),
                 Text(
-                  ping == 0 ? "..." : ping.toString(),
-                  style: TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold),
+                  title,
+                  style: TextStyle(
+                    fontSize: isCompact ? 16 : 18,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
               ],
             ),
-            SizedBox(height: 60.0, child: VerticalDivider()),
-            Column(
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.speed, color: Colors.greenAccent),
-                    SpaceWidget(),
-                    Text("Latence ms"),
-                  ],
-                ),
-                SpaceWidget(),
-                Text(
-                  latency == 0 ? "..." : latency.toString(),
-                  style: TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold),
-                ),
-              ],
+            const SizedBox(height: 8),
+            Text(
+              value == 0 ? "..." : "${value.toStringAsFixed(2)} $unit",
+              style: TextStyle(
+                fontSize: isCompact ? 20 : 28,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
             ),
+            if (!isCompact) ...[
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: value == 0 ? 0 : (value / 100).clamp(0.0, 1.0),
+                backgroundColor: Colors.grey[300],
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+                minHeight: 4,
+              ),
+            ],
           ],
         ),
-      ],
+      ),
     );
   }
 }

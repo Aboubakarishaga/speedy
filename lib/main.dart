@@ -120,7 +120,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Consumer<PreferencesProvider>(
       builder: (context, prefs, child) {
-        // Gérer les changements d'état des tests automatiques
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (prefs.autoTestEnabled && !_autoTestService.isRunning) {
             _autoTestService.startAutoTest(prefs.autoTestInterval);
