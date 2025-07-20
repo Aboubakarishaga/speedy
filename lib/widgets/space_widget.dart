@@ -1,12 +1,20 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
 
 class SpaceWidget extends StatelessWidget {
-  const SpaceWidget({super.key});
+  final double? height;
+  final double? width;
+
+  const SpaceWidget({
+    Key? key,
+    this.height,
+    this.width,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 16.0,
+      height: height,
+      width: width,
     );
   }
 }

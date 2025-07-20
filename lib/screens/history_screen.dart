@@ -155,48 +155,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Historique'),
+        title: Text('Historique des tests'),
+        automaticallyImplyLeading: false,
         actions: [
           if (_speedTests.isNotEmpty) ...[
             IconButton(
-              icon: Icon(Icons.file_download, color: Colors.cyanAccent),
+              icon: Icon(Icons.file_download),
               onPressed: _exportToCsv,
               tooltip: 'Exporter en CSV',
             ),
-            PopupMenuButton(
-              icon: Icon(Icons.more_vert),
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'delete_all',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_forever, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Supprimer tout'),
-                    ],
-                  ),
-                ),
-              ],
-              onSelected: (value) {
-                if (value == 'delete_all') {
-                  _deleteAllTests();
-                }
-              },
+            IconButton(
+              icon: Icon(Icons.delete_sweep),
+              onPressed: _deleteAllTests,
+              tooltip: 'Supprimer tout',
             ),
           ],
         ],
       ),
       body: _isLoading
-          ? Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: Colors.cyanAccent),
-            SpaceWidget(),
-            Text('Chargement de l\'historique...'),
-          ],
-        ),
-      )
+          ? Center(child: CircularProgressIndicator())
           : _speedTests.isEmpty
           ? Center(
         child: Column(
@@ -204,30 +181,25 @@ class _HistoryScreenState extends State<HistoryScreen> {
           children: [
             Icon(
               Icons.history,
-              size: 80,
+              size: 64,
               color: Colors.grey,
             ),
-            SpaceWidget(),
+            SizedBox(height: 16),
             Text(
-              'Aucun test enregistré',
-              style: TextStyle(
-                fontSize: 18,
+              'Aucun test effectué',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: Colors.grey,
               ),
             ),
-            SpaceWidget(),
+            SizedBox(height: 8),
             Text(
-              'Effectuez votre premier test de vitesse!',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
+              'Effectuez votre premier test de vitesse',
+              style: TextStyle(color: Colors.grey),
             ),
           ],
         ),
       )
           : RefreshIndicator(
-        color: Colors.cyanAccent,
         onRefresh: _loadSpeedTests,
         child: ListView.builder(
           padding: EdgeInsets.all(16),
@@ -235,43 +207,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
           itemBuilder: (context, index) {
             final test = _speedTests[index];
             return Card(
-              margin: EdgeInsets.only(bottom: 16),
+              margin: EdgeInsets.only(bottom: 12),
               child: Padding(
                 padding: EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Date et heure
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.calendar_today,
-                              color: Colors.cyanAccent,
-                              size: 16,
-                            ),
-                            SizedBox(width: 8),
                             Text(
                               _formatDate(test['test_date']),
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
-                            SizedBox(width: 16),
-                            Icon(
-                              Icons.access_time,
-                              color: Colors.cyanAccent,
-                              size: 16,
-                            ),
-                            SizedBox(width: 4),
                             Text(
                               _formatTime(test['test_date']),
-                              style: TextStyle(
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                 color: Colors.grey[600],
-                                fontSize: 14,
                               ),
                             ),
                           ],
@@ -279,168 +234,92 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         IconButton(
                           icon: Icon(Icons.delete, color: Colors.red),
                           onPressed: () => _deleteTest(test['id']),
-                          tooltip: 'Supprimer',
                         ),
                       ],
                     ),
-                    SpaceWidget(),
-                    // Métriques de vitesse
+                    SpaceWidget(height: 12),
                     Row(
                       children: [
                         Expanded(
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.arrow_circle_down,
-                                    color: Colors.cyanAccent,
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Download',
-                                    style: TextStyle(
-                                      color: Colors.cyanAccent,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '${test['download_speed']} ${test['unit']}',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                          child: _buildSpeedInfo(
+                            'Download',
+                            test['download_speed'],
+                            test['unit'] ?? 'Mbps',
+                            Icons.download,
+                            Colors.blue,
                           ),
                         ),
                         Expanded(
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.arrow_circle_up,
-                                    color: Colors.purpleAccent,
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Upload',
-                                    style: TextStyle(
-                                      color: Colors.purpleAccent,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '${test['upload_speed']} ${test['unit']}',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                          child: _buildSpeedInfo(
+                            'Upload',
+                            test['upload_speed'],
+                            test['unit'] ?? 'Mbps',
+                            Icons.upload,
+                            Colors.green,
                           ),
                         ),
                       ],
                     ),
-                    SpaceWidget(),
+                    SpaceWidget(height: 8),
                     Row(
                       children: [
                         Expanded(
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.network_ping,
-                                    color: Colors.orangeAccent,
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Ping',
-                                    style: TextStyle(
-                                      color: Colors.orangeAccent,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '${test['ping']} ms',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                          child: _buildSpeedInfo(
+                            'Ping',
+                            test['ping'],
+                            'ms',
+                            Icons.speed,
+                            Colors.orange,
                           ),
                         ),
                         Expanded(
-                          child: Column(
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.speed,
-                                    color: Colors.greenAccent,
-                                    size: 20,
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Latence',
-                                    style: TextStyle(
-                                      color: Colors.greenAccent,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                '${test['latency']} ms',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                          child: _buildSpeedInfo(
+                            'Latence',
+                            test['latency'],
+                            'ms',
+                            Icons.access_time,
+                            Colors.purple,
                           ),
                         ),
                       ],
                     ),
-                    if (test['ip_address'] != null) ...[
-                      SpaceWidget(),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.public,
-                            color: Colors.grey,
-                            size: 16,
-                          ),
-                          SizedBox(width: 8),
-                          Text(
-                            'IP: ${test['ip_address']}',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
+                    if (test['ip_address'] != null || test['server_url'] != null) ...[
+                      SpaceWidget(height: 12),
+                      Divider(),
+                      SpaceWidget(height: 8),
+                      if (test['ip_address'] != null)
+                        Row(
+                          children: [
+                            Icon(Icons.public, size: 16, color: Colors.grey),
+                            SizedBox(width: 8),
+                            Text(
+                              'IP: ${test['ip_address']}',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 12,
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        ),
+                      if (test['server_url'] != null) ...[
+                        SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.dns, size: 16, color: Colors.grey),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Serveur: ${test['server_url']}',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ],
                 ),
@@ -449,6 +328,41 @@ class _HistoryScreenState extends State<HistoryScreen> {
           },
         ),
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _loadSpeedTests,
+        child: Icon(Icons.refresh),
+        tooltip: 'Actualiser',
+      ),
+    );
+  }
+
+  Widget _buildSpeedInfo(String label, dynamic value, String unit, IconData icon, Color color) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 16, color: color),
+            SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 4),
+        Text(
+          '${value?.toStringAsFixed(2) ?? '0.00'} $unit',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
     );
   }
 }

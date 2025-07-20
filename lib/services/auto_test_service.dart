@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'database_service.dart';
 
@@ -13,6 +14,10 @@ class AutoTestService {
   Timer? _timer;
   bool _isRunning = false;
   final DatabaseService _databaseService = DatabaseService();
+
+  // URLs des serveurs de test
+  static const String _cloudflareDownloadUrl = 'https://speed.cloudflare.com/__down';
+  static const String _ipifyUrl = 'https://api.ipify.org?format=json';
 
   bool get isRunning => _isRunning;
 
@@ -47,7 +52,7 @@ class AutoTestService {
         ping: results['ping']!,
         latency: results['latency']!,
         ipAddress: results['ip'],
-        serverUrl: 'https://speed.cloudflare.com',
+        serverUrl: 'Multiple servers (Cloudflare, HTTPBin)',
         unit: 'Mbps',
       );
 
@@ -58,17 +63,8 @@ class AutoTestService {
   }
 
   Future<Map<String, dynamic>> _runSpeedTest() async {
-    // Obtenir l'IP
-    String? ip;
-    try {
-      final ipResponse = await http.get(Uri.parse('https://api.ipify.org?format=json'));
-      if (ipResponse.statusCode == 200) {
-        final ipData = json.decode(ipResponse.body);
-        ip = ipData['ip'];
-      }
-    } catch (e) {
-      ip = 'Unknown';
-    }
+    // Obtenir l'IP publique
+    String? ip = await _getPublicIP();
 
     // Test de téléchargement
     double downloadSpeed = await _testDownload();
@@ -76,141 +72,192 @@ class AutoTestService {
     // Test d'upload
     double uploadSpeed = await _testUpload();
 
-    // Test de ping
-    double ping = await _testPing();
-
-    // Test de latence
-    double latency = await _testLatency();
+    // Test de ping et latence
+    Map<String, double> pingResults = await _testPingAndLatency();
 
     return {
       'download': downloadSpeed,
       'upload': uploadSpeed,
-      'ping': ping,
-      'latency': latency,
+      'ping': pingResults['ping']!,
+      'latency': pingResults['latency']!,
       'ip': ip,
     };
   }
 
+  Future<String?> _getPublicIP() async {
+    try {
+      final response = await http.get(
+        Uri.parse(_ipifyUrl),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['ip'];
+      }
+    } catch (e) {
+      print('Erreur lors de l\'obtention de l\'IP: $e');
+    }
+    return 'Unknown';
+  }
+
   Future<double> _testDownload() async {
     try {
-      final testFileUrl = 'https://speed.cloudflare.com/__down?bytes=1000000';
       final speeds = <double>[];
 
-      for (int i = 0; i < 3; i++) {
-        final startTime = DateTime.now();
+      // Test avec différentes tailles de fichiers
+      final testSizes = [1000000, 5000000, 10000000]; // 1MB, 5MB, 10MB
 
+      for (int size in testSizes) {
         try {
-          final response = await http.get(
-            Uri.parse(testFileUrl),
-            headers: {'Range': 'bytes=0-1048576'},
-          ).timeout(Duration(seconds: 5));
+          final stopwatch = Stopwatch()..start();
 
-          if (response.statusCode == 206 || response.statusCode == 200) {
-            final endTime = DateTime.now();
-            final duration = endTime.difference(startTime).inMilliseconds;
-            final bytes = response.bodyBytes.length;
-            final speed = (bytes * 8) / (duration / 1000) / 1000000;
-            speeds.add(speed);
+          final response = await http.get(
+            Uri.parse('$_cloudflareDownloadUrl?bytes=$size'),
+          ).timeout(const Duration(seconds: 30));
+
+          if (response.statusCode == 200) {
+            stopwatch.stop();
+            final durationInSeconds = stopwatch.elapsedMilliseconds / 1000.0;
+            final bytesReceived = response.bodyBytes.length;
+
+            // Calculer la vitesse en Mbps
+            final speedMbps = (bytesReceived * 8) / (durationInSeconds * 1000000);
+            speeds.add(speedMbps);
+
+            print('Download test: ${bytesReceived} bytes in ${durationInSeconds}s = ${speedMbps.toStringAsFixed(2)} Mbps');
           }
         } catch (e) {
-          // Simulation en cas d'erreur
-          speeds.add(20 + Random().nextDouble() * 80);
+          print('Erreur test download: $e');
+          continue;
         }
       }
 
-      return speeds.isNotEmpty
-          ? speeds.reduce((a, b) => a + b) / speeds.length
-          : 50.0;
+      if (speeds.isNotEmpty) {
+        // Retourner la vitesse la plus élevée
+        return speeds.reduce(max);
+      }
     } catch (e) {
-      return 50.0; // Valeur par défaut
+      print('Erreur générale download: $e');
     }
+
+    return 0.0;
   }
 
   Future<double> _testUpload() async {
     try {
       final speeds = <double>[];
 
-      for (int i = 0; i < 3; i++) {
-        final data = List.generate(1024 * 50, (index) => Random().nextInt(256));
+      // Test avec différentes tailles de données
+      final testSizes = [500000, 1000000, 2000000]; // 500KB, 1MB, 2MB
 
+      for (int size in testSizes) {
         try {
-          final startTime = DateTime.now();
+          // Créer des données aléatoires à envoyer
+          final data = Uint8List.fromList(
+              List.generate(size, (index) => Random().nextInt(256))
+          );
+
+          final stopwatch = Stopwatch()..start();
 
           final response = await http.post(
             Uri.parse('https://httpbin.org/post'),
             body: data,
-          ).timeout(Duration(seconds: 5));
+            headers: {
+              'Content-Type': 'application/octet-stream',
+            },
+          ).timeout(const Duration(seconds: 30));
 
           if (response.statusCode == 200) {
-            final endTime = DateTime.now();
-            final duration = endTime.difference(startTime).inMilliseconds;
-            final bytes = data.length;
-            final speed = (bytes * 8) / (duration / 1000) / 1000000;
-            speeds.add(speed);
-          }
-        } catch (e) {
-          speeds.add(10 + Random().nextDouble() * 40);
-        }
-      }
-
-      return speeds.isNotEmpty
-          ? speeds.reduce((a, b) => a + b) / speeds.length
-          : 25.0;
-    } catch (e) {
-      return 25.0;
-    }
-  }
-
-  Future<double> _testPing() async {
-    try {
-      final pings = <double>[];
-
-      for (int i = 0; i < 5; i++) {
-        final stopwatch = Stopwatch()..start();
-
-        try {
-          final result = await InternetAddress.lookup('google.com');
-          if (result.isNotEmpty) {
             stopwatch.stop();
-            pings.add(stopwatch.elapsedMilliseconds.toDouble());
+            final durationInSeconds = stopwatch.elapsedMilliseconds / 1000.0;
+
+            if (durationInSeconds > 0) {
+              // Calculer la vitesse en Mbps
+              final speedMbps = (size * 8) / (durationInSeconds * 1000000);
+              speeds.add(speedMbps);
+
+              print('Upload test: ${size} bytes in ${durationInSeconds}s = ${speedMbps.toStringAsFixed(2)} Mbps');
+            }
           }
         } catch (e) {
-          pings.add(20 + Random().nextDouble() * 80);
+          print('Erreur test upload: $e');
+          continue;
         }
       }
 
-      return pings.isNotEmpty
-          ? pings.reduce((a, b) => a + b) / pings.length
-          : 50.0;
+      if (speeds.isNotEmpty) {
+        return speeds.reduce(max);
+      }
     } catch (e) {
-      return 50.0;
+      print('Erreur générale upload: $e');
     }
+
+    return 0.0;
   }
 
-  Future<double> _testLatency() async {
-    try {
-      final latencies = <double>[];
+  Future<Map<String, double>> _testPingAndLatency() async {
+    final pingTimes = <double>[];
+    final latencyTimes = <double>[];
 
-      for (int i = 0; i < 5; i++) {
-        final stopwatch = Stopwatch()..start();
+    // URLs de test pour ping et latence
+    final testHosts = [
+      'speed.cloudflare.com',
+      'www.google.com',
+      'www.github.com',
+      'httpbin.org',
+    ];
 
+    for (String host in testHosts) {
+      for (int i = 0; i < 3; i++) {
         try {
-          await http.head(
-            Uri.parse('https://www.google.com'),
-          ).timeout(Duration(seconds: 3));
+          // Test de ping (DNS lookup + connexion)
+          final pingStopwatch = Stopwatch()..start();
+          final addresses = await InternetAddress.lookup(host);
+          if (addresses.isNotEmpty) {
+            pingStopwatch.stop();
+            pingTimes.add(pingStopwatch.elapsedMilliseconds.toDouble());
+          }
 
-          stopwatch.stop();
-          latencies.add(stopwatch.elapsedMilliseconds.toDouble());
+          // Test de latence (requête HTTP complète)
+          final latencyStopwatch = Stopwatch()..start();
+          final response = await http.head(
+            Uri.parse('https://$host'),
+          ).timeout(const Duration(seconds: 5));
+
+          if (response.statusCode < 400) {
+            latencyStopwatch.stop();
+            latencyTimes.add(latencyStopwatch.elapsedMilliseconds.toDouble());
+          }
+
         } catch (e) {
-          latencies.add(15 + Random().nextDouble() * 60);
+          print('Erreur test ping/latence pour $host: $e');
+          continue;
         }
-      }
 
-      return latencies.isNotEmpty
-          ? latencies.reduce((a, b) => a + b) / latencies.length
-          : 35.0;
-    } catch (e) {
-      return 35.0;
+        // Pause entre les tests
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    }
+
+    double avgPing = pingTimes.isEmpty ? 0.0 : _calculateMedian(pingTimes);
+    double avgLatency = latencyTimes.isEmpty ? 0.0 : _calculateMedian(latencyTimes);
+
+    return {
+      'ping': avgPing,
+      'latency': avgLatency,
+    };
+  }
+
+  double _calculateMedian(List<double> values) {
+    if (values.isEmpty) return 0.0;
+
+    values.sort();
+    final middle = values.length ~/ 2;
+
+    if (values.length % 2 == 0) {
+      return (values[middle - 1] + values[middle]) / 2.0;
+    } else {
+      return values[middle];
     }
   }
 }

@@ -6,6 +6,7 @@ import 'package:speedy/widgets/switch_tile.dart';
 import '../providers/provider.dart';
 import '../services/database_service.dart';
 import '../services/auto_test_service.dart';
+import '../services/csv_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -18,6 +19,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final List<String> _units = ['Kbps', 'Mbps', 'Gbps'];
   final List<String> _themes = ['Sombre', 'Clair', 'Système'];
   final List<int> _autoTestIntervals = [15, 30, 60, 120, 360, 720]; // en minutes
+  final DatabaseService _databaseService = DatabaseService();
 
   String _getIntervalDisplayName(int minutes) {
     if (minutes < 60) {
@@ -169,38 +171,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         title: Text('Choisir le thème'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            RadioListTile<ThemeMode>(
-              title: Text('Sombre'),
-              value: ThemeMode.dark,
-              groupValue: prefs.themeMode,
+          children: _themes.asMap().entries.map((entry) {
+            final index = entry.key;
+            final theme = entry.value;
+            return RadioListTile<int>(
+              title: Text(theme),
+              value: index,
+              groupValue: prefs.themeMode.index,
               onChanged: (value) {
-                prefs.setThemeMode(value!);
+                prefs.setThemeMode(ThemeMode.values[value!]);
                 Navigator.pop(context);
               },
               activeColor: Colors.cyanAccent,
-            ),
-            RadioListTile<ThemeMode>(
-              title: Text('Clair'),
-              value: ThemeMode.light,
-              groupValue: prefs.themeMode,
-              onChanged: (value) {
-                prefs.setThemeMode(value!);
-                Navigator.pop(context);
-              },
-              activeColor: Colors.cyanAccent,
-            ),
-            RadioListTile<ThemeMode>(
-              title: Text('Système'),
-              value: ThemeMode.system,
-              groupValue: prefs.themeMode,
-              onChanged: (value) {
-                prefs.setThemeMode(value!);
-                Navigator.pop(context);
-              },
-              activeColor: Colors.cyanAccent,
-            ),
-          ],
+            );
+          }).toList(),
         ),
       ),
     );
@@ -210,7 +194,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Intervalle des tests automatiques'),
+        title: Text('Intervalle de test automatique'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: _autoTestIntervals.map((interval) => RadioListTile<int>(
@@ -232,18 +216,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Effacer l\'historique'),
+        title: Text('Confirmer la suppression'),
         content: Text('Êtes-vous sûr de vouloir supprimer tout l\'historique des tests?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(context).pop(),
             child: Text('Annuler'),
           ),
           TextButton(
             onPressed: () async {
+              Navigator.of(context).pop();
               try {
-                await DatabaseService().deleteAllSpeedTests();
-                Navigator.pop(context);
+                await _databaseService.deleteAllSpeedTests();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text('Historique supprimé avec succès'),
@@ -251,10 +235,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 );
               } catch (e) {
-                Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Erreur lors de la suppression'),
+                    content: Text('Erreur lors de la suppression: $e'),
                     backgroundColor: Colors.red,
                   ),
                 );
@@ -273,11 +256,65 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Sauvegarde des données'),
-        content: Text('Fonctionnalité de sauvegarde à venir...'),
+        content: Text('Voulez-vous exporter vos données de test en CSV?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              try {
+                final tests = await _databaseService.getAllSpeedTests();
+                if (tests.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Aucune donnée à exporter'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                  return;
+                }
+
+                // Afficher dialog de chargement
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => AlertDialog(
+                    content: Row(
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(width: 16),
+                        Text('Export en cours...'),
+                      ],
+                    ),
+                  ),
+                );
+
+                await CsvService.exportToCsv(tests);
+
+                // Fermer dialog de chargement
+                Navigator.of(context).pop();
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Export CSV réussi!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                // Fermer dialog de chargement en cas d'erreur
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Erreur lors de l\'export: $e'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: Text('Exporter'),
           ),
         ],
       ),
@@ -288,22 +325,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('À propos'),
+        title: Text('À propos de Speedy'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Speed Test App'),
             Text('Version: 1.0.0'),
-            SizedBox(height: 10),
+            SizedBox(height: 8),
             Text('Application de test de vitesse Internet'),
+            SizedBox(height: 8),
             Text('Développé avec Flutter'),
+            SizedBox(height: 8),
+            Text('© 2024 Speedy App'),
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Fermer'),
           ),
         ],
       ),
@@ -315,43 +354,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Aide et support'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Questions fréquentes:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 10),
-              Text('• Comment effectuer un test?'),
-              Text('  Appuyez sur le bouton "GO" sur l\'écran principal.'),
-              SizedBox(height: 8),
-              Text('• Pourquoi mes résultats varient-ils?'),
-              Text('  La vitesse Internet peut varier selon l\'heure, la charge du réseau et votre position.'),
-              SizedBox(height: 8),
-              Text('• Comment activer les tests automatiques?'),
-              Text('  Allez dans Paramètres > Test automatique et activez l\'option.'),
-              SizedBox(height: 8),
-              Text('• Que signifient Download/Upload?'),
-              Text('  Download: vitesse de réception des données'),
-              Text('  Upload: vitesse d\'envoi des données'),
-              SizedBox(height: 15),
-              Text(
-                'Contact:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 5),
-              Text('Email: support@speedtestapp.com'),
-              Text('Site web: www.speedtestapp.com'),
-            ],
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('FAQ', style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(height: 8),
+            Text('Q: Comment fonctionne le test de vitesse?'),
+            Text('R: L\'app teste votre connexion en téléchargeant et envoyant des données vers des serveurs fiables.'),
+            SizedBox(height: 8),
+            Text('Q: Puis-je programmer des tests automatiques?'),
+            Text('R: Oui, activez les tests automatiques dans les paramètres.'),
+            SizedBox(height: 16),
+            Text('Contact:', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('support@speedyapp.com'),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Fermer'),
           ),
         ],
       ),
@@ -368,53 +390,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Collecte des données:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('• Nous collectons uniquement les résultats de vos tests de vitesse'),
-              Text('• Aucune donnée personnelle n\'est collectée'),
-              Text('• Les données sont stockées localement sur votre appareil'),
-              SizedBox(height: 15),
-              Text(
-                'Utilisation des données:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('• Les données servent uniquement à l\'historique des tests et aussi à facilité la prédiction des performances future du réseau.'),
-              Text('• Aucun partage avec des tiers'),
+              Text('Collecte de données:', style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 4),
+              Text('• Résultats des tests de vitesse'),
+              Text('• Adresse IP publique'),
+              Text('• Horodatage des tests'),
+              SizedBox(height: 12),
+              Text('Utilisation:', style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 4),
+              Text('• Les données sont stockées localement'),
+              Text('• Aucune donnée n\'est partagée avec des tiers'),
               Text('• Vous pouvez supprimer vos données à tout moment'),
-              SizedBox(height: 15),
-              Text(
-                'Sécurité:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('• Toutes les données sont chiffrées'),
-              Text('• Aucune transmission de données sensibles'),
-              Text('• Respect des standards de sécurité'),
-              SizedBox(height: 15),
-              Text(
-                'Vos droits:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 8),
-              Text('• Droit d\'accès à vos données'),
-              Text('• Droit de suppression'),
-              Text('• Droit de portabilité'),
-              SizedBox(height: 10),
-              Text('Dernière mise à jour: Juin 2025'),
+              SizedBox(height: 12),
+              Text('Sécurité:', style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(height: 4),
+              Text('• Connexions sécurisées (HTTPS)'),
+              Text('• Aucun stockage de données personnelles'),
             ],
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('J\'ai compris'),
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text('Fermer'),
           ),
         ],
       ),
     );
   }
 }
+
