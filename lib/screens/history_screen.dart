@@ -83,12 +83,33 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _deleteTest(int id) async {
-    try {
-      await _databaseService.deleteSpeedTest(id);
-      await _loadSpeedTests();
-      _showSuccessSnackBar('Test supprimé avec succès');
-    } catch (e) {
-      _showErrorSnackBar('Erreur lors de la suppression: $e');
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Confirmer la suppression'),
+        content: Text('Êtes-vous sûr de vouloir supprimer ce Test de l\'historique?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await _databaseService.deleteSpeedTest(id);
+        await _loadSpeedTests();
+        _showSuccessSnackBar('Test supprimé avec succès');
+      } catch (e) {
+        _showErrorSnackBar('Erreur lors de la suppression: $e');
+      }
     }
   }
 
@@ -303,22 +324,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ),
                       if (test['server_url'] != null) ...[
                         SizedBox(height: 4),
-                        Row(
-                          children: [
-                            Icon(Icons.dns, size: 16, color: Colors.grey),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Serveur: ${test['server_url']}',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
                       ],
                     ],
                   ],
@@ -330,8 +335,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _loadSpeedTests,
-        child: Icon(Icons.refresh),
         tooltip: 'Actualiser',
+        child: Icon(Icons.refresh),
       ),
     );
   }

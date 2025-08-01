@@ -48,7 +48,7 @@ class LoadingWidget extends StatelessWidget {
           ],
           SizedBox(height: 16.0),
           Text(
-            text ?? "Sélection du serveur...",
+            text ?? "Connexion au serveur...",
             style: TextStyle(fontSize: 16.0),
             textAlign: TextAlign.center,
           ),

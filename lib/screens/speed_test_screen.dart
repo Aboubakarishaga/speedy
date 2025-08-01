@@ -119,7 +119,7 @@ class _SpeedTestScreenState extends State<SpeedTestScreen> {
 
       // Passer à la page des résultats
       pageController.nextPage(
-        duration: Duration(milliseconds: 300),
+        duration: Duration(milliseconds: 200),
         curve: Curves.easeInOut,
       );
     } catch (e) {

@@ -332,11 +332,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Text('Version: 1.0.0'),
             SizedBox(height: 8),
-            Text('Application de test de vitesse Internet'),
+            Text('Application de Prévision de la Performance d\'un Réseau Communautaire'),
             SizedBox(height: 8),
             Text('Développé avec Flutter'),
             SizedBox(height: 8),
-            Text('© 2024 Speedy App'),
+            Text('© 2025 Speedy'),
           ],
         ),
         actions: [
@@ -361,13 +361,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Text('FAQ', style: TextStyle(fontWeight: FontWeight.bold)),
             SizedBox(height: 8),
             Text('Q: Comment fonctionne le test de vitesse?'),
-            Text('R: L\'app teste votre connexion en téléchargeant et envoyant des données vers des serveurs fiables.'),
+            Text('R: L\'app préduit les performances future dans votre réseau communautaire en téléchargeant et envoyant des données vers des serveurs fiables.'),
             SizedBox(height: 8),
             Text('Q: Puis-je programmer des tests automatiques?'),
             Text('R: Oui, activez les tests automatiques dans les paramètres.'),
             SizedBox(height: 16),
-            Text('Contact:', style: TextStyle(fontWeight: FontWeight.bold)),
-            Text('support@speedyapp.com'),
           ],
         ),
         actions: [
