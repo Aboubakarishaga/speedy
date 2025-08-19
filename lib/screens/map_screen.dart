@@ -511,7 +511,7 @@ class _MapScreenState extends State<MapScreen>
           ),
         );
       }
-      
+
     }
 
     _cachedMarkers = markers;
