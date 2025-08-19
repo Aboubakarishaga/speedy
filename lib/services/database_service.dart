@@ -25,18 +25,22 @@ class DatabaseService {
 
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE speed_tests(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        download_speed REAL NOT NULL,
-        upload_speed REAL NOT NULL,
-        ping REAL NOT NULL,
-        latency REAL NOT NULL,
-        ip_address TEXT,
-        server_url TEXT,
-        test_date TEXT NOT NULL,
-        unit TEXT NOT NULL
-      )
-    ''');
+    CREATE TABLE speed_tests(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      download_speed REAL NOT NULL,
+      upload_speed REAL NOT NULL,
+      ping REAL NOT NULL,
+      latency REAL NOT NULL,
+      ip_address TEXT,
+      server_url TEXT,
+      test_date TEXT,
+      timestamp TEXT,
+      unit TEXT NOT NULL,
+      latitude REAL,
+      longitude REAL,
+      location TEXT
+    )
+  ''');
   }
 
   Future<int> insertSpeedTest({

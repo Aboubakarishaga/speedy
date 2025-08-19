@@ -511,17 +511,7 @@ class _MapScreenState extends State<MapScreen>
           ),
         );
       }
-
-      // Polyline
-      if (visibleHistory.length > 1) {
-        polylines.add(
-          Polyline(
-            points: visibleHistory.map((item) => item.position).toList(),
-            color: Colors.blue.withOpacity(0.7),
-            strokeWidth: 3.0,
-          ),
-        );
-      }
+      
     }
 
     _cachedMarkers = markers;
